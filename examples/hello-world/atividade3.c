@@ -43,16 +43,25 @@
 #include "dev/leds.h"
 
 /*---------------------------------------------------------------------------*/
+//Definição das macros
+#define LED_PING_EVENT 45
+#define LED_PONG_EVENT 46
+/*---------------------------------------------------------------------------*/
 static struct etimer et_hello;
 static struct etimer et_blink;
+static struct etimer et_proc3; //Novo timer
+static struct etimer et_pong; //timer para o pong
 static uint16_t count;
 
 /*---------------------------------------------------------------------------*/
-PROCESS(hello_world_process, "Hello world process");
-PROCESS(blink_process, "LED blink process");
+PROCESS(hello_world_process, "Hello world process");// processo 1
+PROCESS(blink_process, "LED blink process");//processo 2
+PROCESS(proc3_process, "Novo processo");//processo 3
+PROCESS(pong_process, "PONG");//processo pong
 
 /*---------------------------------------------------------------------------*/
-AUTOSTART_PROCESSES(&blink_process);
+//AUTOSTART_PROCESSES(&blink_process, &hello_world_process);// inicializa os processos
+AUTOSTART_PROCESSES(&proc3_process, &blink_process, &hello_world_process, &pong_process);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(hello_world_process, ev, data)
 {
@@ -67,9 +76,15 @@ PROCESS_THREAD(hello_world_process, ev, data)
   while(1) {
     PROCESS_WAIT_EVENT();
     if(ev == PROCESS_EVENT_TIMER){
-        leds_toggle(LEDS_RED);
+          leds_toggle(LEDS_RED);
         etimer_reset(&et_hello);
-        printf("HELLO: Piscando o LED vermelho!\n");
+       printf("HELLO: Piscando o LED vermelho!\n");
+       process_post(&pong_process, LED_PING_EVENT, (void*)(&hello_world_process));
+
+    }
+    if(ev == LED_PONG_EVENT){
+
+        printf("PING hello_world_process \n");
     }
   }
 
@@ -84,20 +99,78 @@ PROCESS_THREAD(blink_process, ev, data)
   etimer_set(&et_blink, 2*CLOCK_SECOND);
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
 
-  etimer_set(&et_blink, 5*CLOCK_SECOND);
-  while(1) {
+  etimer_set(&et_blink, 5*CLOCK_SECOND); //Para alterar o tempo que o led alterna basta mudar o
+  while(1) {                                //multiplicador 5, pelo número de segundos desejado
     PROCESS_WAIT_EVENT();
     if(ev == PROCESS_EVENT_TIMER){
+
         leds_toggle(LEDS_GREEN);
         etimer_reset(&et_blink);
         printf("BLINK: Piscando o LED verde!\n");
+        process_post(&pong_process, LED_PING_EVENT, (void*)(&blink_process));
+
     }
+      if(ev == LED_PONG_EVENT){
+
+          printf("PING BLINK \n");
+      }
 
   }
 
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
+PROCESS_THREAD(proc3_process, ev, data)
+{
+  PROCESS_BEGIN();
+
+  etimer_set(&et_proc3, 5*CLOCK_SECOND);
+  PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
 
 
+  etimer_set(&et_proc3, CLOCK_SECOND * 1);
+  count = 0;
+  while(1) {
+    PROCESS_WAIT_EVENT();
+    if(ev == PROCESS_EVENT_TIMER){
+
+        leds_toggle(LEDS_RED);
+        etimer_reset(&et_proc3);
+        printf("Novo processo!\n");
+        process_post(&pong_process, LED_PING_EVENT, (void*)(&proc3_process));
+
+    }
+    if(ev == LED_PONG_EVENT){
+
+        printf("PING Novo processo \n");
+     }
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(pong_process, ev, data)
+{
+  PROCESS_BEGIN();
+
+  etimer_set(&et_pong, 5*CLOCK_SECOND);
+  PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
+
+
+  etimer_set(&et_pong, CLOCK_SECOND * 4);
+  count = 0;
+  while(1) {
+    PROCESS_WAIT_EVENT();
+    //if(ev == PROCESS_EVENT_TIMER){
+    if(ev == LED_PING_EVENT){
+        leds_toggle(LEDS_RED);
+        //etimer_reset(&et_pong);
+        process_post((struct process*) data, LED_PONG_EVENT, NULL);
+        printf("PONG: Recebido PING do processo %s\n", ((struct process*) data)->name);
+    }
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
 
