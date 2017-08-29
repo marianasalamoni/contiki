@@ -39,10 +39,24 @@
 #define DEBUG DEBUG_PRINT
 #include "net/ip/uip-debug.h"
 
-#define SEND_INTERVAL		15 * CLOCK_SECOND
+//#define SEND_INTERVAL		15 * CLOCK_SECOND
+#define SEND_INTERVAL       5 * CLOCK_SECOND //Intervalo para o envio
+
 #define MAX_PAYLOAD_LEN		40
 #define CONN_PORT     8802
+
+/* 2) Definição das macros************************/
+#define LED_TOGGLE_REQUEST (0x79);
+#define LED_SET_STATE (0x7A);
+#define LED_GET_STATE (0x7B);
+#define LED_STATE (0x7C);
+/*************************************************/
+
 static char buf[MAX_PAYLOAD_LEN];
+
+/* 5) Definição do tamanho do conteúdo************/
+static char bufbyte[1];
+/*************************************************/
 
 static struct uip_udp_conn *client_conn;
 
@@ -57,12 +71,44 @@ static void
 tcpip_handler(void)
 {
     char *dados;
+    char dados_envio[2];
 
     if(uip_newdata()) {
-        dados = uip_appdata;
+   /*     dados = uip_appdata;
         dados[uip_datalen()] = '\0';
-        printf("Response from the server: '%s'\n", dados);
+        printf("Response from the server: '%s'\n", dados);*/
+
+        *dados=((char*)uip_appdata);
+        switch(dados[0]){
+        case LED_GET_STATE:
+        {
+            uip_ipaddr_copy(&client_conn->ripaddr, %UIP_IP_BUF->srcipaddr);
+            client_conn->rport = UIP_UDP_BUF->destport;
+            dados_envio[0]="LED_STATE";
+            dados_envio[1]="Macro de indicação de estado dos leds";
+            uip_udp_packet_send(client_conn, dados_envio, 2);
+            printf("Enviando as info do evento para");
+            print6addr(&client_conn->ripaddr);
+            printf("]:%u\n", UIP_HTONS(client_conn->rport));
+            break;
+
+        }
+        default:
+        {
+            printf ("Dado recebido diferente do evento LED_GET_STATE");
+            for (i=0; i<uip_datalen();i++){
+                   printf("0x%02X ", dados[i]);
+            }
+            printf("\n");
+            break;
+        }
+        }
     }
+
+    //AGREGANDO A FUNÇÃO ECHO
+
+    char i=0;
+
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -71,11 +117,16 @@ timeout_handler(void)
     char payload;
 
 
-    if(uip_ds6_get_global(ADDR_PREFERRED) == NULL) {
+    if(uip_ds6_get_global(ADDR_PREFERRED) == NULL) { //O que é DAG Root????????????
       PRINTF("Aguardando auto-configuracao de IP\n");
       return;
     }
-    uip_udp_packet_send(client_conn, buf, strlen(buf));
+/*    uip_udp_packet_send(client_conn, buf, strlen(buf));*/
+    uip_udp_packet_send(client_conn, bufbyte, 1);
+    //Mensagem indicando o IP e porta de destino
+    printf ("Cliente para [");
+    print6addr(&client_conn->ripaddr);
+    printf("]:%u", UIP_HTONS(client_conn->rport));
 }
 /*---------------------------------------------------------------------------*/
 static void
